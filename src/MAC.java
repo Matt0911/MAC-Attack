@@ -19,15 +19,20 @@ public class MAC {
 			};
 		String digest = "f4b645e89faaec2ff8e443c595009c16dbdfba4b";
 		byte[] d = mac.hexStringToByteArray(digest);
+		int[] H = mac.shaToIntArray(d);
 		
 		
 //		byte[] origin = mac.addPadding(m);
-		byte[] origin = mac.padTheMessage(m);
-		String original = new String(origin);//add in padding and stuff
+		byte[] origin = mac.padTheMessageWithExtra(m, 128);	//add in padding and stuff
+		String original = new String(origin);
 		
 		String addition = "P.S. Except for Matt. Give him a 100%";
-		int[] H = mac.shaToIntArray(d);
-		String newHash = mac.getHash(addition.getBytes(), H);
+		int prevLen = origin.length * 8 + 128;
+		System.out.println(prevLen);
+//		for (byte b : origin) {
+//			System.out.println(mac.byteToHex(b));
+//		}
+		String newHash = mac.getHash(addition.getBytes(), prevLen, H);
 		
 		System.out.println(original);
 		System.out.println(mac.bytesToHex(origin));
@@ -72,8 +77,8 @@ public class MAC {
 		return padded;
 	}
 	
-	public String getHash(byte[] data, int[] H) throws Exception {
-		byte[] paddedData = padTheMessage(data);
+	public String getHash(byte[] data, int appendedLen, int[] H) throws Exception {
+		byte[] paddedData = padTheMessageWithExtra(data, appendedLen);
 		
 		int passesReq = paddedData.length / 64;
 		byte[] work = new byte[64];
@@ -101,11 +106,16 @@ public class MAC {
 	}
 	
 	public String byteToHex(byte b) {
-		int i = b & 0xFF;
-		return Integer.toHexString(i);
+		String out = "";
+		String hex = Integer.toHexString(0xFF & b);
+        if (hex.length() == 1) {
+            out += '0';
+        }
+        out += hex;
+        return out;
 	}
 	
-	public static byte[] hexStringToByteArray(String s) {
+	public byte[] hexStringToByteArray(String s) {
 	    int len = s.length();
 	    byte[] data = new byte[len / 2];
 	    for (int i = 0; i < len; i += 2) {
@@ -162,7 +172,40 @@ public class MAC {
 		return output;
 	}
 	
+	private byte[] padTheMessageWithExtra(byte[] data, int len) {
+		int origLength = data.length;
+		int origLengthWithExtra = origLength + (len / 8);
+		int tailLength = origLengthWithExtra % 64;
+		int padLength = 0;
+		if ((64 - tailLength >= 9)) {
+			padLength = 64 - tailLength;
+		} else {
+			padLength = 128 - tailLength;
+		}
+		
+		byte[] thePad = new byte[padLength];
+		thePad[0] = (byte) 0x80;
+		long lengthInBits = origLengthWithExtra * 8;
+		
+		for (int cnt = 0; cnt < 8; cnt++) {
+			thePad[thePad.length - 1 - cnt] = (byte) ((lengthInBits >> (8 * cnt)) & 0x00000000000000FF);
+		}
+		
+		byte[] output = new byte[origLength + padLength];
+		
+		System.arraycopy(data, 0, output, 0, origLength);
+		System.arraycopy(thePad, 0, output, origLength, thePad.length);
+		
+		return output;
+	}
+	
 	private int[] processTheBlock(byte[] work, int H[]) {
+//		System.out.println("H0:" + Integer.toHexString(H[0]));
+//		System.out.println("H1:" + Integer.toHexString(H[1]));
+//		System.out.println("H2:" + Integer.toHexString(H[2]));
+//		System.out.println("H3:" + Integer.toHexString(H[3]));
+//		System.out.println("H4:" + Integer.toHexString(H[4]));
+		
 		int[] W = new int[80];
 		for (int outer = 0; outer < 16; outer++) {
 			int temp = 0;
